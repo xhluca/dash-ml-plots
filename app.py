@@ -63,7 +63,8 @@ def serve_pr_curve(y_test, y_score):
         y=precision,
         mode='lines',
         name='Predicted',
-        fill='tozeroy'
+        fill='tozeroy',
+        marker=dict(color='#F46036')
     )
 
     data = [trace0]
@@ -87,7 +88,8 @@ def serve_roc_curve(y_test, y_score):
         y=tpr,
         mode='lines',
         name='Predicted',
-        fill='tozeroy'
+        fill='tozeroy',
+        marker=dict(color='#D7263D')
     )
     trace1 = serve_calibrated_line()
 
@@ -115,7 +117,8 @@ def serve_calibration_curve(y_test, y_score):
         x=mpv,
         y=frac_pos,
         name='Predicted',
-        mode='lines+markers'
+        mode='lines+markers',
+        marker=dict(color='#2E294E'),
     )
     trace2 = go.Histogram(
         x=frac_pos,
@@ -126,7 +129,8 @@ def serve_calibration_curve(y_test, y_score):
         ),
         opacity=0.8,
         xaxis='x2',
-        yaxis='y2'
+        yaxis='y2',
+        marker=dict(color='#1B998B')
     )
 
     data = [trace0, trace1, trace2]
