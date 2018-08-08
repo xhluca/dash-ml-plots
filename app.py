@@ -1,16 +1,14 @@
 import os
 
-import colorlover as cl
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-import plotly.graph_objs as go
 from dash.dependencies import Input, Output, State
 from sklearn import svm, datasets
 from sklearn.model_selection import train_test_split
 import numpy as np
-import sklearn.metrics as skmetrics
-import sklearn.calibration as skcalibration
+
+import figures
 
 app = dash.Dash(__name__)
 server = app.server
@@ -41,166 +39,6 @@ def load_data():
     return y_test, y_score
 
 
-def serve_calibrated_line():
-    return go.Scatter(
-        x=[0, 1],
-        y=[0, 1],
-        mode='lines',
-        hoverinfo='none',
-        line=dict(
-            color='#222222',
-            dash='dash'
-        )
-    )
-
-
-def serve_pr_curve(y_test, y_score):
-    precision, recall, _ = skmetrics.precision_recall_curve(y_test, y_score)
-    ap_score = skmetrics.average_precision_score(y_test, y_score)
-
-    trace0 = go.Scatter(
-        x=recall,
-        y=precision,
-        mode='lines',
-        name='Predicted',
-        fill='tozeroy',
-        marker=dict(color='#F46036')
-    )
-
-    data = [trace0]
-    layout = go.Layout(
-        title='Precision-Recall Curve: AP={0:0.2f}'.format(ap_score),
-        margin=dict(t=35, b=35, r=30, l=50),
-        xaxis=dict(title='Recall'),
-        yaxis=dict(title='Precision')
-    )
-
-    figure = go.Figure(data=data, layout=layout)
-    return figure
-
-
-def serve_roc_curve(y_test, y_score):
-    fpr, tpr, _ = skmetrics.roc_curve(y_test, y_score)
-    roc_auc = skmetrics.roc_auc_score(y_test, y_score)
-
-    trace0 = go.Scatter(
-        x=fpr,
-        y=tpr,
-        mode='lines',
-        name='Predicted',
-        fill='tozeroy',
-        marker=dict(color='#D7263D')
-    )
-    trace1 = serve_calibrated_line()
-
-    data = [trace0, trace1]
-    layout = go.Layout(
-        title='ROC Curve: Area={0:0.2f}'.format(roc_auc),
-        showlegend=False,
-        margin=dict(t=35, b=35, r=30, l=50),
-        xaxis=dict(title='False Positive Rate'),
-        yaxis=dict(title='True Positive Rate')
-    )
-
-    figure = go.Figure(data=data, layout=layout)
-    return figure
-
-
-def serve_calibration_curve(y_test, y_score):
-    clf_score = skmetrics.brier_score_loss(y_test, y_score)
-    # frac_pos --> fraction of positive
-    # mpv --> mean predicted value
-    frac_pos, mpv = skcalibration.calibration_curve(y_test, y_score, n_bins=10)
-
-    trace0 = serve_calibrated_line()
-    trace1 = go.Scatter(
-        x=mpv,
-        y=frac_pos,
-        name='Predicted',
-        mode='lines+markers',
-        marker=dict(color='#2E294E'),
-    )
-    trace2 = go.Histogram(
-        x=frac_pos,
-        xbins=dict(
-            start=0,
-            end=1,
-            size=0.1
-        ),
-        opacity=0.8,
-        xaxis='x2',
-        yaxis='y2',
-        marker=dict(color='#1B998B')
-    )
-
-    data = [trace0, trace1, trace2]
-    layout = go.Layout(
-        title='Calibration Plot: Brier={0:0.2f}'.format(clf_score),
-        margin=dict(t=30, b=35, r=30, l=50),
-        showlegend=False,
-        xaxis=dict(
-
-        ),
-        yaxis=dict(
-            title='Fraction of Positives',
-            domain=[0.4, 1]
-        ),
-        xaxis2=dict(
-            title='Mean Predicted Value',
-            anchor='y2'
-        ),
-        yaxis2=dict(
-            title='Count',
-            domain=[0, 0.35]
-        )
-    )
-
-    figure = go.Figure(data=data, layout=layout)
-    return figure
-
-
-def serve_pie_confusion_matrix(y_test, y_score):
-    y_pred = (y_score > 0.5).astype(int)
-    matrix = skmetrics.confusion_matrix(y_true=y_test, y_pred=y_pred)
-    tn, fp, fn, tp = matrix.ravel()
-
-    values = [tp, fn, fp, tn]
-    label_text = ["True Positive",
-                  "False Negative",
-                  "False Positive",
-                  "True Negative"]
-    labels = ["TP", "FN", "FP", "TN"]
-    blue = cl.flipper()['seq']['9']['Blues']
-    red = cl.flipper()['seq']['9']['Reds']
-    colors = [blue[4], blue[1], red[1], red[4]]
-
-    trace0 = go.Pie(
-        labels=label_text,
-        values=values,
-        hoverinfo='label+value+percent',
-        textinfo='text+value',
-        text=labels,
-        sort=False,
-        marker=dict(
-            colors=colors
-        )
-    )
-
-    layout = go.Layout(
-        title=f'Confusion Matrix',
-        margin=dict(l=10, r=10, t=30, b=10),
-        legend=dict(
-            bgcolor='rgba(255,255,255,0)',
-            # orientation='h'
-        )
-    )
-
-    data = [trace0]
-    figure = go.Figure(data=data, layout=layout)
-
-    return figure
-
-
 y_test, y_score = load_data()
 
 # Custom Script for Heroku
@@ -213,56 +51,109 @@ app.layout = html.Div(children=[
     # .container class is fixed, .container.scalable is scalable
     html.Div(className="banner", children=[
         html.Div(className='container scalable', children=[
-            html.H2('App Name'),
+            html.H2('Binary Classification Dashboard'),
             html.Img(
                 src="https://s3-us-west-1.amazonaws.com/plotly-tutorials/logo/new-branding/dash-logo-by-plotly-stripe-inverted.png")
         ])
     ]),
 
-    html.Div(id='body', className='container scalable', children=[
+    html.Div(
+        id='body',
+        className='container scalable',
+        style={'overflow-x': 'hidden'},
+        children=[
 
-        html.Div(
-            className='four columns',
-            style={'height': '99vh'},
-            children=[
-                dcc.Graph(
-                    id='graph-calibration-curve',
-                    figure=serve_calibration_curve(y_test, y_score),
-                    style={'height': '99%'}
-                ),
-            ]
-        ),
+            html.Div(
+                className='four columns',
+                style={'height': 'calc(100vh - 85px)'},
+                children=[
+                    dcc.Graph(
+                        id='graph-calibration-curve',
+                        figure=figures.serve_calibration_curve(y_test,
+                                                               y_score),
+                        style={'height': '99%'}
+                    ),
+                ]
+            ),
 
-        html.Div(
-            className='four columns',
-            style={'height': '99vh'},
-            children=[
-                dcc.Graph(
-                    id='graph-pr-curve',
-                    figure=serve_pr_curve(y_test, y_score),
-                    style={'height': '49%', 'padding-bottom': '2%'}
-                ),
-                dcc.Graph(
-                    id='graph-roc-curve',
-                    figure=serve_roc_curve(y_test, y_score),
-                    style={'height': '49%'}
-                )
-            ]
-        ),
+            html.Div(
+                className='four columns',
+                style={'height': 'calc(100vh - 85px)'},
+                children=[
+                    dcc.Graph(
+                        id='graph-roc-curve',
+                        style={'height': '59%', 'padding-bottom': '2%'}
+                    ),
+                    dcc.Graph(
+                        id='graph-confusion-matrix',
+                        style={'height': '39%'}
+                    ),
 
-        html.Div(
-            className='four columns',
-            style={'height': '99vh'},
-            children=[
-                dcc.Graph(
-                    id='graph-confusion-matrix',
-                    figure=serve_pie_confusion_matrix(y_test, y_score),
-                    style={'height': '48%', 'margin': '1%'}
-                )
-            ]
-        ),
-    ])
+                ]
+            ),
+
+            html.Div(
+                className='four columns',
+                style={'height': 'calc(100vh - 85px)'},
+                children=[
+                    dcc.Graph(
+                        id='graph-pr-curve',
+                        style={'height': '59%', 'padding-bottom': '2%'}
+                    ),
+
+                    html.Div(style={'margin': '0px 20px 0px 50px'}, children=[
+                        html.Div(id='div-score-table'),
+                        html.Div(
+                            id='div-current-threshold',
+                            style={
+                                'text-align': 'center',
+                                'margin-bottom': '20px'
+                            }
+                        ),
+                        dcc.Slider(
+                            id='slider-threshold',
+                            min=0,
+                            max=1,
+                            value=0.5,
+                            step=0.01,
+                            marks={
+                                0: '0',
+                                0.5: '0.5',
+                                1: '1'
+                            }
+                        ),
+                    ]),
+
+                ]
+            ),
+        ]
+    )
 ])
+
+
+@app.callback(Output('div-current-threshold', 'children'),
+              [Input('slider-threshold', 'value')])
+def update_div_threshold(value):
+    return "Current Threshold: " + str(value)
+
+
+@app.callback(Output('graph-confusion-matrix', 'figure'),
+              [Input('slider-threshold', 'value')])
+def update_confusion_matrix(threshold):
+    return figures.serve_pie_confusion_matrix(y_test, y_score, threshold)
+
+
+@app.callback(Output('graph-pr-curve', 'figure'),
+              [Input('slider-threshold', 'value')])
+def update_pr_curve(threshold):
+    return figures.serve_pr_curve(y_test, y_score, threshold)
+
+
+@app.callback(Output('graph-roc-curve', 'figure'),
+              [Input('slider-threshold', 'value')])
+def update_pr_curve(threshold):
+    return figures.serve_roc_curve(y_test, y_score, threshold)
+
 
 external_css = [
     # Normalize the CSS
@@ -275,6 +166,13 @@ external_css = [
     # Custom Stylesheet, replace this with your own custom-styles.css using Rawgit
     "https://cdn.rawgit.com/xhlulu/638e683e245ea751bca62fd427e385ab/raw/custom-styles.css"
 ]
+
+
+@app.callback(Output('div-score-table', 'children'),
+              [Input('slider-threshold', 'value')])
+def update_score_table(threshold):
+    return figures.serve_score_table(y_test, y_score, threshold)
+
 
 for css in external_css:
     app.css.append_css({"external_url": css})
